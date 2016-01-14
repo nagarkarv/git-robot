@@ -14,15 +14,21 @@ if (argv.r) {
 // Open the repository directory.
 //Git.Repository.open(path.resolve(__dirname, "../../Projects/SauceLab/.git"))
 if (repo)
-Git.Repository.open(path.resolve(__dirname, repo))
-
+  Git.Repository.open(path.resolve(__dirname, repo))
   // Open the master branch.
   .then(success = function (repo) {
       console.log('Repository ' + argv.r + ' opened successfully');
       repo.getBranch('octopack').then(function (ref) {
-          console.log('ref is ' + ref)
+          console.log('Branch Name is ' + ref)
           return ref;
-      });
+      }, function(err){
+		  console.log('Branch NOT found..');
+	  });
+
+	repo.getTagByName('v0.0.1').then(function (ref) {
+    console.log('Owner of Tag -> ' + ref.name() + ' is ' + ref.message()) 
+         return ref;
+    }, function (err) { console.log('Error getting TAG :' + err)});
 
      return repo.getMasterCommit();
   }, error = function (err) { console.log(err.message)})
