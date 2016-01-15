@@ -6,15 +6,16 @@ param(
     [parameter(Mandatory=$false)] [string]$totag = "1.1.7"
 )
 
-$global:stashBaseUrl = "xx";
-$global:stash_username = "xx";
-$global:stash_password = "xx";
+$global:stashBaseUrl = "https://stash.euromoneydigital.com/rest/api/1.0/projects/";
+$global:stash_username = "vikram.nagarkar";
+$global:stash_password = "Vikram@2016";
 
 $global:fromtag = $fromtag;
 $global:totag = $totag;
 
 $global:projectName = $stashprojectname;
-$global:nl = [Environment]::NewLine;
+#$global:nl = [Environment]::NewLine;
+$global:nl = " ";
 $global:commits = $null;
 Write-Host "Trying connecting to Stash..." -foreground Green
 # ---------------
@@ -65,9 +66,12 @@ $stash = New-Module -ScriptBlock {
 					$max = 50;
 					Write-Host "*** Max = $max";
 				}
-				$releaseNotes = $releaseNotes + "-- [ " + $commit.message.substring(0,$max) + " ]" + "$global:nl";
+				#$releaseNotes = $releaseNotes + "-- [ " + $commit.message.substring(0,$max) + " ]" + "$global:nl";
+				$releaseNotes = $releaseNotes + "-- " + $commit.message.substring(0,$max) + " " + "$global:nl";
+				$releaseNotes = $releaseNotes.replace('\','_');
+				$releaseNotes = $releaseNotes.replace('/','_');
+				
 				#$releaseNotes = $releaseNotes + "==>[ " + $commit.author.name + " ] " + "ID = " + $commit.author.name + "$global:nl";
-				#Write-Host "Inside ForEach $commit";
 			}
 		}
 		#$releaseNotes = $releaseNotes + "[" + $commit.sha.Substring(0, 10) + "](https://github.com/$github_owner/$github_repo/commit/" + $commit.sha + ") - " + $commit.commit.message + "<br/>$nl"
@@ -76,6 +80,7 @@ $stash = New-Module -ScriptBlock {
 		Write-Host "=======Final Release notes=========" -foreground blue;
 		Write-Host $global:nl $releaseNotes -foreground Green;
 		Write-Host "===================================" -foreground blue;
+		return $releaseNotes;
 	}
 	
 	Export-ModuleMember -Function GetCommits
@@ -91,7 +96,7 @@ Function GenerateReleaseNotesForLatestCommit()
 	$response = $stash.GetCommits()
 	$global:commits = $response.values;
 	######### | Sort-Object -Property @{Expression={$_.commit.author.date}; Ascending=$false} -Descending
-	$stash.GenerateReleaseNotes();
+	return $stash.GenerateReleaseNotes();
 }
 
 Function GenerateReleaseNotesBetweenTags()
@@ -99,7 +104,7 @@ Function GenerateReleaseNotesBetweenTags()
 	Write-Host "========= Compare Tag ============";
 	$response = $stash.GetCommitsBetweenTags();
 	$global:commits = $response.values;
-	$stash.GenerateReleaseNotes();
+	return $stash.GenerateReleaseNotes();
 }
 
 Function GenerateReleaseNotesFromSHA()
@@ -108,14 +113,46 @@ Function GenerateReleaseNotesFromSHA()
 	#$response = $stash.GetCommitsBetweenGitSHA("af30d3b0d0a", "815f7cb5958");
 	$response = $stash.GetCommitsBetweenGitSHA("refs/tags/1.1.7", "815f7cb5958");
 	$global:commits = $response.values;
-	$stash.GenerateReleaseNotes();
+	return $stash.GenerateReleaseNotes();
 }
 
 Function Main()
 {
 	#GenerateReleaseNotesForLatestCommit;
 	#GenerateReleaseNotesBetweenTags;
-	GenerateReleaseNotesFromSHA;
+	$notes = GenerateReleaseNotesFromSHA;
+	$notes = $notes.replace('\','_');
+	$notes = $notes.replace('''','_');
+	$notes = $notes.replace([Environment]::NewLine,' ');
+	#Set-TeamCity-Parameter "ReleaseNotes" "$notes.substring(0,20)";
+	Write-Host "Final Notes being set is ------ ==> $notes";
+	#Set-TeamCity-Parameter "ReleaseNotes" "$notes";
+	Set-TeamCity-Parameter "ReleaseNotes" "-- Merge branch release_1.1.8 -- remove awards link, copied sitecore jade file to s  -- IIATHENA-2443 - Merged into develop - Cookie Contr  -- added class to handle IE9 cookie control closing  -- IIATHENA-2573 - Merged into develop - Add ManagCom  -- IIATHENA-2577 - Merged into develop - Social icons  --" + [Environment]::NewLine + "IIATHENA-2586 - Merged into develop - GA tracking  -- rebuilding it  -- fixed typos  -- added create index GA tag  -- Ran BuildAll  -- 2577 - Fixed position of social sharing  -- Merge latest develop into branch  -- Merge branch develop into feature_IIATHENA-2586 - END";
+}
+
+function Set-TeamCity-Parameter($name, $value) {
+    Write-Host "Setting TC Parameter"
+	Write-Host "##teamcity[setParameter name='$name' value='$value']"
+	#Ref https://gist.github.com/mbenford/e306ff83ff0a70799e14 	
 }
 
 Main;
+
+Set-TeamCity-Parameter "test" "OK"
+#Set-TeamCity-Parameter "ReleaseNotes" "Vikram"
+
+
+<#
+Get Latest Release deployed in Octopus from Within TeamCity
+
+$octopusProject = '%octopus.project.name%'
+$environment = '%octopus.environment.target%'
+
+$octoExe = '%teamcity.tool.OctopusTools%\Octo.exe'
+$deployments = &$octoExe list-latestdeployments --project="$octopusProject" --server=%octopus.server.url% --apikey=%octopus.api.key% --environment="$environment"
+$latestVersion = $deployments | Where { $_.Contains('Version:') } | Select -First 1
+if ($latestVersion)
+{
+    Write-Host ("##teamcity[setParameter name='octopus.deployment.latest' value='{0}']" -f $latestVersion.Split(':')[1].Trim())
+}
+#>
