@@ -21,18 +21,31 @@ Write-Host "Trying connecting to Stash..." -foreground Green
 # Connect to Stash using powershell API #
 # ---------------
 $stash = New-Module -ScriptBlock {
-	Function CompareTagGetCommits(){
+	Function GetCommitsBetweenGitSHA(){
+	param([string] $sinceSHA, [string] $untilSHA)
+		try{
+			$url = "$global:stashBaseUrl" + "$global:projectName" + "/commits?since=$sinceSHA&until=$untilSHA";
+			Write-Host "*********** Commits From SHA - Unitl( $sinceSHA, $untilSHA )*************" -foreground Green;
+			
+			$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $global:stash_username,$global:stash_password)))
+			return Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Uri $url -Verbose 
+		}catch {
+			Write-Host "Execption: $_.Exception.Response";
+		}		
+	}
+
+	Function GetCommitsBetweenTags{
 		try{
 			$url = "$global:stashBaseUrl" + "$global:projectName" + "/compare/commits?from=refs/tags/$global:fromtag&to=refs/tags/$global:totag";
 			Write-Host "*********** Comparing Tags ( $global:fromtag, $global:totag )*************";
 			
 			$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $global:stash_username,$global:stash_password)))
 			return Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Uri $url -Verbose 
-		}catch {
-			$_.Exception.Response
+			}catch {
+				$_.Exception.Response
 		}		
 	}
-
+	
 	Function GetCommits(){
 		try{
 			$url = "$global:stashBaseUrl" + "$global:projectName" + "/commits";
@@ -60,31 +73,49 @@ $stash = New-Module -ScriptBlock {
 		#$releaseNotes = $releaseNotes + "[" + $commit.sha.Substring(0, 10) + "](https://github.com/$github_owner/$github_repo/commit/" + $commit.sha + ") - " + $commit.commit.message + "<br/>$nl"
 		#$releaseNotes = $releaseNotes + "[" + $commit.sha.Substring(0, 10) + "];
 			
-		Write-Host "=======Final Release notes=========";
-		Write-Host $global:nl $releaseNotes;
-		Write-Host "===================================";
+		Write-Host "=======Final Release notes=========" -foreground blue;
+		Write-Host $global:nl $releaseNotes -foreground Green;
+		Write-Host "===================================" -foreground blue;
 	}
 	
 	Export-ModuleMember -Function GetCommits
-	Export-ModuleMember -Function CompareTagGetCommits
+	Export-ModuleMember -Function GetCommitsBetweenTags
+	Export-ModuleMember -Function GetCommitsBetweenGitSHA
 	Export-ModuleMember -Function GenerateReleaseNotes
 	
 } -AsCustomObject
 
-Function Main()
+Function GenerateReleaseNotesForLatestCommit()
 {
+	Write-Host "========= Latest Commits ============";
 	$response = $stash.GetCommits()
-	Write-Host "response is  = $response";
-
 	$global:commits = $response.values;
 	######### | Sort-Object -Property @{Expression={$_.commit.author.date}; Ascending=$false} -Descending
-
 	$stash.GenerateReleaseNotes();
+}
 
-	Write-Host "=========Compare Tag============";
-	$response = $stash.CompareTagGetCommits();
+Function GenerateReleaseNotesBetweenTags()
+{
+	Write-Host "========= Compare Tag ============";
+	$response = $stash.GetCommitsBetweenTags();
 	$global:commits = $response.values;
 	$stash.GenerateReleaseNotes();
+}
+
+Function GenerateReleaseNotesFromSHA()
+{
+	Write-Host "========= Compare SHA ============";
+	#$response = $stash.GetCommitsBetweenGitSHA("af30d3b0d0a", "815f7cb5958");
+	$response = $stash.GetCommitsBetweenGitSHA("refs/tags/1.1.7", "815f7cb5958");
+	$global:commits = $response.values;
+	$stash.GenerateReleaseNotes();
+}
+
+Function Main()
+{
+	#GenerateReleaseNotesForLatestCommit;
+	#GenerateReleaseNotesBetweenTags;
+	GenerateReleaseNotesFromSHA;
 }
 
 Main;
