@@ -128,11 +128,22 @@ Function Main()
 	Write-Host "Final Notes being set is ------ ==> $notes";
 	#Set-TeamCity-Parameter "ReleaseNotes" "$notes";
 	Set-TeamCity-Parameter "ReleaseNotes" "-- Merge branch release_1.1.8 -- remove awards link, copied sitecore jade file to s  -- IIATHENA-2443 - Merged into develop - Cookie Contr  -- added class to handle IE9 cookie control closing  -- IIATHENA-2573 - Merged into develop - Add ManagCom  -- IIATHENA-2577 - Merged into develop - Social icons  --" + [Environment]::NewLine + "IIATHENA-2586 - Merged into develop - GA tracking  -- rebuilding it  -- fixed typos  -- added create index GA tag  -- Ran BuildAll  -- 2577 - Fixed position of social sharing  -- Merge latest develop into branch  -- Merge branch develop into feature_IIATHENA-2586 - END";
+	$teamcity_version = "%build.counter%";
+	Write-Host "*** FIRST - Team City Parameter build.number - $teamcity_version" 
+	Get-TeamCity-Parameter "build.counter" $teamcity_version;
+	Write-Host "*** SECOND - Team City Parameter build.number - $teamcity_version" 
+	
 }
 
 function Set-TeamCity-Parameter($name, $value) {
     Write-Host "Setting TC Parameter"
 	Write-Host "##teamcity[setParameter name='$name' value='$value']"
+	#Ref https://gist.github.com/mbenford/e306ff83ff0a70799e14 	
+}
+
+function Get-TeamCity-Parameter($name, $value) {
+    Write-Host "Getting TC Parameter"
+	Write-Host "##teamcity[getParameter name='$name' value='$value']"
 	#Ref https://gist.github.com/mbenford/e306ff83ff0a70799e14 	
 }
 
@@ -154,5 +165,63 @@ $latestVersion = $deployments | Where { $_.Contains('Version:') } | Select -Firs
 if ($latestVersion)
 {
     Write-Host ("##teamcity[setParameter name='octopus.deployment.latest' value='{0}']" -f $latestVersion.Split(':')[1].Trim())
+}
+#>
+
+<# Sample to add release notes to nuspec
+
+param(   
+    [Parameter(Mandatory = $true, HelpMessage="NuSpec filepath")]    
+    [System.String]$nuspecFilePath
+    )
+ 
+[string]$currentBranch = git rev-parse --abbrev-ref HEAD
+[string]$latestTag = git describe --abbrev=0 --tags
+ 
+# Check for release branch
+if($currentBranch.StartsWith('release/') -or $currentBranch.StartsWith('hotfix/')){
+ 
+    Write-Output "Current $currentBranch"
+    Write-Output "Tag $latestTag"
+ 
+    $cmd = "git log --no-merges --pretty=format:""* %h - %s __[%an]__"" $latestTag..$currentBranch"
+    $log = Invoke-Expression $cmd  
+ 
+    if($log){  
+        [string]$temp = $log
+        $formatted = $temp
+        Write-Output "Release notes:"
+        Write-Output "----------------------------------"
+        Write-Output $formatted.Replace(" * ", "`n* ")
+        Write-Output "----------------------------------"       
+    }
+ 
+    #get nuspec file path
+    $path = $nuspecFilePath
+        
+    if($path){
+       [xml]$xml = Get-Content $path
+       $parentNode = $xml.SelectSingleNode("//metadata")  
+        $node = $xml.SelectSingleNode("//releaseNotes")        
+        
+        # remove existing releasenotes node
+        if ($node -ne $null) {
+            $parentNode = $node.ParentNode         
+            $node.ParentNode.RemoveChild($node)
+        } 
+ 
+        # create new node
+        $relNotes = $xml.CreateElement('releaseNotes')
+        $relNotes.InnerText = $formatted.Replace(" * ", "`n* ")
+        $parentNode.AppendChild($relNotes)
+        
+        # save nuspec file
+        $xml.Save($path)
+            
+        Write-Output "NuSpec updated"
+        
+    } else {
+        Write-Output "NuSpec file not found"
+    }
 }
 #>
