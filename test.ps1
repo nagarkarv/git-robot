@@ -17,6 +17,9 @@ Function LoadTeamcityProperties()
 		$AppProps = convertfrom-stringdata (Get-Content -Path "$file" -raw);
 		$AppProps.Keys | % { "key = $_ , value = " + $AppProps.Item($_) }	
 		Write-Host "Branch value is -->" $AppProps["current.branch"];
+		Set-Variable -Name:"solution_file" -Value:$AppProps["solution.file"] -Scope:1; # variables are loaded into parent scope
+		Write-Host "solution_file value is -->" $AppProps["solution.file"];
+		Write-Host "solution value is --> $solution_file";
 }
 
 <#$teamcity_buildcounter = "%build.counter%";
@@ -45,5 +48,6 @@ Write-Host "Project name is $projectname";
 #$projectName = "%Octopus_Project%";
 #Write-Host "Project name with % $projectName";
 Write-Host "env.branch = $env:branch";
+Write-Host "env.solution.file = $env:solution_file";
 
 LoadTeamcityProperties;
