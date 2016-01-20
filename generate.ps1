@@ -132,6 +132,8 @@ Function Main()
 	Write-Host "*** FIRST - Team City Parameter build.number - $teamcity_version" 
 	Get-TeamCity-Parameter "build.counter" $teamcity_version;
 	Write-Host "*** SECOND - Team City Parameter build.number - $teamcity_version" 
+	$projectName = "%Octopus.Project%";
+	Write-Host "Project name is $projectName";
 	
 }
 
